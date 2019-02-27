@@ -1,33 +1,56 @@
-// module.exports = () => {
-//   // ...
-// };
-
-const fs = require('fs');
-const path = require('path');
-
+const { mdLinks } = require('./lib/md-links.js');
 let providedDirectory = process.argv[2];
+let validate = process.argv.indexOf("--validate");
+let stats = process.argv.indexOf("--stats");
+const fetch = require('node-fetch');
+let colors = require('colors');
 
-const mdLinks = (providedDirectory) => {
-
-  fs.lstat(providedDirectory, (err, stats) => {
-
-    if (err) {
-      return console.log("Se ha presentado un error. " + err + ". Intentalo de nuevo."); //Handle error
-    }
- //stats.isFile() === true
-    if ( path.extname(providedDirectory) === ".md") {
-      return console.log("File is: " + path.resolve(providedDirectory));
-    } else if (stats.isDirectory() === true) {
-      let stillDirectory = path.resolve(providedDirectory);
-      let dirListing = fs.readdirSync(stillDirectory);
-      for(let i = 0; i < dirListing.length; i++){
-        let newDirectory = path.join(providedDirectory, `${dirListing[i]}`);
-        console.log(newDirectory);
-        return mdLinks(newDirectory);
+if (require.main === module) {
+  mdLinks(providedDirectory).then(async results => {
+    let urlBroken = [];
+    const printValidate = async () => {
+      if (validate > 0) {
+        await Promise.all(results.map(element => {
+          return fetch(element.href)
+            .then(response => {
+              if (response.status !== 200) {
+                urlBroken.push(response.status)
+              }
+              if (validate === 3) {
+                console.log("\n", element.file.cyan, "\n", "URL: " + response.url.underline.blue, "\n", "Status: " + response.statusText.green, "\n", "Code: " + ("" + response.status).yellow, "\n", "Text: " + element.text)
+              }
+            })
+            .catch(error => {
+              urlBroken.push(error.code)
+              if (validate === 3) {
+                console.log("\n", element.file.cyan, "\n", "URL: " + element.href.blue, "\n", "Error code: " + error.code.red)
+              }
+            })
+        }));
       }
     }
+    const printStats = async () => {
+      if (stats === 3) {
+        let urlArr = [];
+        results.forEach(element => {
+          urlArr.push(element.href)
+        })
+        if (validate === 4) {
+          console.log("\n", "Total: " + urlArr.length, "\n", "Unique: " + new Set(urlArr).size, "\n", "Broken: " + urlBroken.length)
+        } else {
+          console.log("\n", "Total: " + urlArr.length, "\n", "Unique: " + new Set(urlArr).size)
+        }
+      }
+    }
+    const printData = async () =>{
+      if (validate !== 4 && validate !== 3 && stats !== 3 ){
+        results.map(element => {
+          console.log("\n", element.file.cyan, "\n", "URL: " + element.href.underline.blue, "\n", "Line: " + ("" + element.line).green, "\n", "Text: " + element.text)
+        })
+      }
+    }
+    await printValidate();
+    await printStats();
+    await printData();
   });
-
 }
-
-mdLinks(providedDirectory);
