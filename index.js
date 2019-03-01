@@ -13,7 +13,7 @@ if (require.main === module) {
         await Promise.all(results.map(element => {
           return fetch(element.href)
             .then(response => {
-              if (response.status !== 200) {
+              if (response.ok !== true) {
                 urlBroken.push(response.status)
               }
               if (validate === 3) {
